@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}First run · Bootleg{% endblock %}
+{% block layout %}
+<div class="gate"><div class="gate-card">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#14171b" stroke="#23282f"/><path d="M9 11h14M9 16h14M9 21h9" stroke="#c9f227" stroke-width="2.6" stroke-linecap="round"/></svg>
+    Bootleg
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Set your admin password</h2></div>
+    <div class="panel-body">
+      <p style="color:var(--muted);font-size:13px">This is the only account. It guards every toolkit and every API key on this server, so make it a good one.</p>
+      {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+      <form method="post">
+        <div class="field">
+          <label class="lbl" for="password">Password</label>
+          <input type="password" id="password" name="password" autofocus required minlength="10" autocomplete="new-password">
+          <div class="hint">At least 10 characters.</div>
+        </div>
+        <div class="field">
+          <label class="lbl" for="confirm">Confirm password</label>
+          <input type="password" id="confirm" name="confirm" required autocomplete="new-password">
+        </div>
+        <button class="btn primary" style="width:100%;justify-content:center" type="submit">Create and sign in</button>
+      </form>
+    </div>
+  </div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Not found · Bootleg{% endblock %}
+{% block layout %}
+<div class="gate"><div class="gate-card" style="text-align:center">
+  <div class="brand" style="justify-content:center">
+    <svg width="26" height="26" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#14171b" stroke="#23282f"/><path d="M9 11h14M9 16h14M9 21h9" stroke="#c9f227" stroke-width="2.6" stroke-linecap="round"/></svg>
+    Bootleg
+  </div>
+  <div class="panel"><div class="panel-body">
+    <h1 style="margin-bottom:6px">Not found</h1>
+    <p style="color:var(--muted)">That toolkit or page does not exist.</p>
+    <a class="btn primary" href="{{ url_for('dashboard') }}">Back to toolkits</a>
+  </div></div>
+</div></div>
+{% endblock %}

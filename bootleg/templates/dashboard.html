@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Toolkits · Bootleg{% endblock %}
+{% block main %}
+<div class="topbar">
+  <h1>Toolkits</h1>
+  <div class="spacer"></div>
+  <button class="btn primary" id="new-toolkit">
+    <svg width="15" height="15"><use href="#i-plus"/></svg> New toolkit
+  </button>
+</div>
+
+<div class="content">
+  {% if toolkits %}
+  <div class="grid cards">
+    {% for tk in toolkits %}
+    <a class="card" href="{{ url_for('toolkit_view', slug=tk.slug) }}">
+      <div class="card-title">
+        <svg width="17" height="17" style="color:var(--accent)"><use href="#i-box"/></svg>
+        {{ tk.name }}
+        {% if tk.dirty %}<span class="badge warn" title="Contents changed since the last build">unbuilt</span>{% endif %}
+      </div>
+      <div class="card-desc">{{ tk.description or "No description" }}</div>
+      <div class="card-stats">
+        <span><b>{{ tk.tool_count }}</b> tool{{ '' if tk.tool_count == 1 else 's' }}</span>
+        {% if tk.tracked_count %}<span><b>{{ tk.tracked_count }}</b> tracked</span>{% endif %}
+        <span><b>{{ tk.payload_size | human_size }}</b></span>
+        {% if tk.archive_revision %}<span>rev <b>{{ tk.archive_revision }}</b></span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="panel"><div class="empty">
+    <svg width="42" height="42"><use href="#i-box"/></svg>
+    <h2>No toolkits yet</h2>
+    <p>A toolkit is a named bundle of tools you deploy together. Create one, add your binaries and tracked repos, then grab the deploy command.</p>
+    <button class="btn primary" id="new-toolkit-empty">
+      <svg width="15" height="15"><use href="#i-plus"/></svg> Create your first toolkit
+    </button>
+  </div></div>
+  {% endif %}
+
+  {% if events %}
+  <div class="panel">
+    <div class="panel-head"><h2>Recent activity</h2></div>
+    <div class="panel-body flush events">
+      {% for ev in events %}
+      <div class="event {{ ev.level }}">
+        <time datetime="{{ ev.created_at }}">{{ ev.created_at[5:16] | replace('T', ' ') }}</time>
+        <span>{{ ev.message }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function newToolkitDialog() {
+  Bootleg.modal({
+    title: 'New toolkit',
+    body: `
+      <div class="field">
+        <label class="lbl" for="tk-name">Name</label>
+        <input type="text" id="tk-name" placeholder="Internal Engagement" autofocus>
+        <div class="hint">Used in the API key and as the deploy directory name.</div>
+      </div>
+      <div class="field">
+        <label class="lbl" for="tk-desc">Description <span style="color:var(--faint);font-weight:400">optional</span></label>
+        <input type="text" id="tk-desc" placeholder="Standard kit for internal network tests">
+      </div>`,
+    confirm: 'Create toolkit',
+    onConfirm: async (root) => {
+      const name = root.querySelector('#tk-name').value.trim();
+      if (!name) { Bootleg.toast('Give the toolkit a name.', 'err'); return false; }
+      const res = await Bootleg.post('/api/toolkits', {
+        name, description: root.querySelector('#tk-desc').value
+      });
+      location.href = '/toolkit/' + res.toolkit.slug;
+    }
+  });
+}
+document.getElementById('new-toolkit')?.addEventListener('click', newToolkitDialog);
+document.getElementById('new-toolkit-empty')?.addEventListener('click', newToolkitDialog);
+</script>
+{% endblock %}

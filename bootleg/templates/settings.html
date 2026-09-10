@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Settings · Bootleg{% endblock %}
+{% block main %}
+<div class="topbar"><h1>Settings</h1></div>
+<div class="content">
+  <div class="panel">
+    <div class="panel-head"><h2>Server address</h2></div>
+    <div class="panel-body">
+      <div class="field">
+        <label class="lbl" for="public-url">Public URL</label>
+        <input type="text" id="public-url" value="{{ public_url }}" placeholder="https://bootleg.example.com" spellcheck="false">
+        <div class="hint">
+          Baked into every API key, so deploy agents know where to call home. Use the address a target host
+          can actually reach — not <code>localhost</code>. Changing it reissues every key; scripts already
+          handed out keep pointing at the old address.
+        </div>
+      </div>
+      <button class="btn primary" id="save-url">Save</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>GitHub tracking</h2></div>
+    <div class="panel-body">
+      <div class="field">
+        <label class="lbl" for="gh-token">Personal access token <span style="color:var(--faint);font-weight:400">optional</span></label>
+        <input type="password" id="gh-token" placeholder="{{ 'stored — leave blank to keep' if github_token else 'ghp_…' }}" autocomplete="off">
+        <div class="hint">
+          Raises the API rate limit from 60 to 5,000 requests an hour and lets you track private repos.
+          A fine-grained token with read-only Contents access is enough.
+        </div>
+      </div>
+      <div class="field">
+        <label class="lbl" for="interval">Check for new releases every</label>
+        <div class="row">
+          <input type="number" id="interval" value="{{ check_interval }}" min="0" step="5" style="max-width:120px">
+          <span class="shrink" style="color:var(--muted);padding-bottom:9px">minutes — 0 turns automatic checks off</span>
+          <div style="flex:1"></div>
+        </div>
+      </div>
+      <button class="btn primary" id="save-github">Save</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Network</h2></div>
+    <div class="panel-body">
+      <label class="check">
+        <input type="checkbox" id="trust-proxy" {{ 'checked' if trust_proxy }}>
+        <span><b>This server sits behind a reverse proxy</b>
+        Take the client address from <code>X-Forwarded-For</code> instead of the socket.
+        Deploy keys lock to a client address, so leave this <b>off</b> unless a proxy really is
+        in front — otherwise anyone could forge the header and walk through that lock.</span>
+      </label>
+      <div style="margin-top:14px"><button class="btn primary" id="save-network">Save</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Admin password</h2></div>
+    <div class="panel-body">
+      <div class="field">
+        <label class="lbl" for="new-password">New password</label>
+        <input type="password" id="new-password" placeholder="At least 10 characters" autocomplete="new-password">
+      </div>
+      <button class="btn" id="save-password">Change password</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Activity log</h2></div>
+    <div class="panel-body flush events">
+      {% for ev in events %}
+      <div class="event {{ ev.level }}">
+        <time datetime="{{ ev.created_at }}">{{ ev.created_at[:16] | replace('T', ' ') }}</time>
+        <span>{{ ev.message }}</span>
+      </div>
+      {% else %}
+      <div class="empty"><p>Nothing logged yet.</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('save-url').addEventListener('click', async (e) => {
+  const url = document.getElementById('public-url').value.trim();
+  if (!/^https?:\/\//.test(url)) return Bootleg.toast('Start the URL with http:// or https://', 'err');
+  await Bootleg.post('/api/settings', { public_url: url }, e.target);
+  Bootleg.toast('Server address saved. Existing keys now point here.');
+});
+
+document.getElementById('save-github').addEventListener('click', async (e) => {
+  const body = { check_interval: document.getElementById('interval').value };
+  const token = document.getElementById('gh-token').value.trim();
+  if (token) body.github_token = token;
+  await Bootleg.post('/api/settings', body, e.target);
+  document.getElementById('gh-token').value = '';
+  Bootleg.toast('GitHub settings saved.');
+});
+
+document.getElementById('save-network').addEventListener('click', async (e) => {
+  await Bootleg.post('/api/settings',
+    { trust_proxy: document.getElementById('trust-proxy').checked }, e.target);
+  Bootleg.toast('Network settings saved.');
+});
+
+document.getElementById('save-password').addEventListener('click', async (e) => {
+  const password = document.getElementById('new-password').value;
+  if (password.length < 10) return Bootleg.toast('Use at least 10 characters.', 'err');
+  await Bootleg.post('/api/settings', { password }, e.target);
+  document.getElementById('new-password').value = '';
+  Bootleg.toast('Password changed.');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}{{ toolkit.name }} · Bootleg{% endblock %}
+{% block main %}
+<div class="topbar">
+  <div>
+    <div class="crumb"><a href="{{ url_for('dashboard') }}">Toolkits</a> / {{ toolkit.slug }}</div>
+    <h1>{{ toolkit.name }}</h1>
+  </div>
+  <div class="spacer"></div>
+  {% if toolkit.dirty %}
+    <span class="badge warn" id="build-state"><span class="dot warn"></span> changes not built</span>
+  {% else %}
+    <span class="badge ok" id="build-state"><span class="dot ok"></span> rev {{ toolkit.archive_revision }} · {{ toolkit.archive_size | human_size }}</span>
+  {% endif %}
+  <button class="btn" id="rebuild">
+    <svg width="15" height="15"><use href="#i-refresh"/></svg> Rebuild
+  </button>
+</div>
+
+<nav class="tabs">
+  <a href="{{ url_for('toolkit_view', slug=toolkit.slug, tab='tools') }}" class="{{ 'active' if tab == 'tools' }}">Tools</a>
+  <a href="{{ url_for('toolkit_view', slug=toolkit.slug, tab='deploy') }}" class="{{ 'active' if tab == 'deploy' }}">Deploy</a>
+  <a href="{{ url_for('toolkit_view', slug=toolkit.slug, tab='settings') }}" class="{{ 'active' if tab == 'settings' }}">Settings</a>
+</nav>
+
+<div class="content">
+{% if tab == 'tools' %}
+  <div class="row" style="margin-bottom:18px">
+    <div class="dropzone" id="dropzone">
+      <svg width="26" height="26"><use href="#i-upload"/></svg>
+      <b>Drop files to archive</b>
+      <small>or click to choose — binaries, scripts, tarballs, wordlists</small>
+      <input type="file" id="file-input" multiple hidden>
+      <div class="progress" id="upload-progress" hidden><i></i></div>
+    </div>
+    <div class="dropzone" id="add-github" style="cursor:pointer">
+      <svg width="26" height="26"><use href="#i-github"/></svg>
+      <b>Track a GitHub project</b>
+      <small>pulls the latest release, and every one after it</small>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Contents</h2>
+      <span class="badge plain" id="tool-count">{{ tools | length }}</span>
+      <div class="spacer"></div>
+      {% if tools | selectattr('kind', 'equalto', 'github') | list %}
+      <button class="btn sm" id="check-updates">
+        <svg width="14" height="14"><use href="#i-refresh"/></svg> Check for updates
+      </button>
+      {% endif %}
+      {% if tools %}
+      <a class="btn sm" href="{{ url_for('download_toolkit', slug=toolkit.slug) }}"
+         title="Download every tool in this toolkit as one zip">
+        <svg width="14" height="14"><use href="#i-download"/></svg> Download zip
+      </a>
+      {% endif %}
+    </div>
+    <div class="panel-body flush">
+      {% if tools %}
+      <table class="list">
+        <thead><tr>
+          <th>Tool</th><th>Source</th><th>Version</th><th class="right">Size</th><th></th>
+        </tr></thead>
+        <tbody id="tool-rows">
+        {% for tool in tools %}
+          <tr class="tool {{ '' if tool.enabled else 'disabled' }}" data-id="{{ tool.id }}">
+            <td>
+              <div class="tool-name">
+                <svg width="15" height="15" style="color:var(--faint)"><use href="#i-{{ 'github' if tool.kind == 'github' else 'file' }}"/></svg>
+                {{ tool.name }}
+                {% if tool.unpack %}<span class="badge plain" title="Extracted on the target host">unpack</span>{% endif %}
+              </div>
+              <div class="tool-path">{{ (tool.install_dir ~ '/' if tool.install_dir else '') ~ (tool.filename or '—') }}</div>
+            </td>
+            <td>
+              {% if tool.kind == 'github' %}
+                <a href="https://github.com/{{ tool.gh_repo }}" target="_blank" rel="noopener">{{ tool.gh_repo }}</a>
+                <div class="tool-path js-status">{{ tool.gh_status }}</div>
+              {% else %}
+                <span style="color:var(--muted)">Uploaded</span>
+                <div class="tool-path">{{ tool.added_at[:10] }}</div>
+              {% endif %}
+            </td>
+            <td><span class="badge {{ 'accent' if tool.version else 'plain' }} js-version">{{ tool.version or '—' }}</span></td>
+            <td class="right mono" style="color:var(--muted)">{{ tool.size | human_size }}</td>
+            <td class="actions">
+              {% if tool.kind == 'github' %}
+              <button class="btn ghost sm icon js-refresh" title="Check this project now">
+                <svg width="14" height="14"><use href="#i-refresh"/></svg>
+              </button>
+              {% endif %}
+              <a class="btn ghost sm icon" title="Download this tool"
+                 href="{{ url_for('download_tool', slug=toolkit.slug, tool_id=tool.id) }}">
+                <svg width="14" height="14"><use href="#i-download"/></svg>
+              </a>
+              <button class="btn ghost sm icon js-edit" title="Edit placement">
+                <svg width="14" height="14"><use href="#i-gear"/></svg>
+              </button>
+              <button class="btn ghost sm icon js-delete" title="Remove from toolkit">
+                <svg width="14" height="14" style="color:var(--danger)"><use href="#i-trash"/></svg>
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">
+        <svg width="38" height="38"><use href="#i-file"/></svg>
+        <h2>Nothing archived yet</h2>
+        <p>Upload a file or track a GitHub project above. Everything you add gets packed into one encrypted archive.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+{% elif tab == 'deploy' %}
+  <div class="panel">
+    <div class="panel-head">
+      <svg width="16" height="16" style="color:var(--accent)"><use href="#i-rocket"/></svg>
+      <h2>Deploy this toolkit</h2>
+      <div class="spacer"></div>
+      {% set live = tools | selectattr('enabled') | list | length %}
+      <span class="badge plain">{{ live }} tool{{ '' if live == 1 else 's' }} · {{ toolkit.archive_size | human_size }}</span>
+    </div>
+    <div class="panel-body">
+      <div class="serverline">
+        <span class="lbl-inline">Agents will call</span>
+        <code id="server-url">{{ public_url }}</code>
+        <button class="btn ghost sm" id="change-url">Change</button>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <h3>Get the agent onto the host</h3>
+          <p>Each of these mints a <b>new key</b> and bakes it into the script. A key locks onto
+             the first host that deploys with it, so that host can re-run the script freely while
+             anyone else who lifts it is refused.</p>
+          <div class="row">
+            <button class="btn primary" id="copy-oneliner">
+              <svg width="15" height="15"><use href="#i-copy"/></svg> Copy one-line command
+            </button>
+            <button class="btn shrink" id="copy-script">
+              <svg width="15" height="15"><use href="#i-copy"/></svg> Copy full script
+            </button>
+            <a class="btn shrink" href="{{ url_for('download_script', slug=toolkit.slug) }}">
+              <svg width="15" height="15"><use href="#i-download"/></svg> Download .py
+            </a>
+            <div style="flex:1"></div>
+          </div>
+          <div class="keybox masked" id="issued-box" hidden>
+            <code id="issued-key"></code>
+            <button class="btn ghost sm icon" id="issued-toggle" title="Reveal">
+              <svg width="14" height="14"><use href="#i-eye"/></svg>
+            </button>
+          </div>
+          <div class="hint" id="issued-hint" hidden>
+            This key locks to the first host that deploys with it. It is not stored on the
+            server and will not be shown again — issue another whenever you need one.
+          </div>
+        </div>
+        <div class="step">
+          <h3>Run it</h3>
+          <p>The toolkit lands in <code style="color:var(--accent)">./{{ toolkit.slug }}</code>. Re-running on that same host is fine — it only re-downloads when the archive has changed.</p>
+          <pre class="code">python3 bootleg_deploy.py              <span style="color:var(--faint)"># deploy here</span>
+python3 bootleg_deploy.py -d /opt/kit  <span style="color:var(--faint)"># deploy somewhere else</span>
+python3 bootleg_deploy.py --list       <span style="color:var(--faint)"># show contents, download nothing</span>
+python3 bootleg_deploy.py --setup      <span style="color:var(--faint)"># run the toolkit's setup.sh afterwards</span>
+python3 bootleg_deploy.py --insecure   <span style="color:var(--faint)"># self-signed TLS on the server</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <svg width="16" height="16"><use href="#i-key"/></svg>
+      <h2>Deploy keys</h2>
+      <span class="badge plain" id="key-count">{{ keys | selectattr('state', 'equalto', 'ready') | list | length }} unused</span>
+      <div class="spacer"></div>
+      <button class="btn sm" id="prune-keys" title="Delete revoked keys and ones never used">Tidy up</button>
+    </div>
+    <div class="panel-body flush">
+      <table class="list" id="keys-table">
+        <thead><tr><th>Key</th><th>Issued</th><th>Locked to</th><th></th></tr></thead>
+        <tbody id="key-rows">
+        {% for k in keys %}
+          <tr data-id="{{ k.id }}">
+            <td class="mono">#{{ k.id }}{% if k.label %} <span style="color:var(--faint)">{{ k.label }}</span>{% endif %}</td>
+            <td class="mono" style="color:var(--muted)">{{ k.created_at[:16] | replace('T', ' ') }}</td>
+            <td>
+              {% if k.revoked %}<span class="badge danger">revoked</span>
+              {% elif k.bound_ip %}<span class="badge accent" title="First deployed {{ k.used_at }}">{{ k.bound_ip }}</span>
+                <span style="color:var(--faint);font-size:11.5px"> · {{ k.use_count }} deploy{{ '' if k.use_count == 1 else 's' }}</span>
+              {% else %}<span class="badge ok"><span class="dot ok"></span> not yet used</span>{% endif %}
+            </td>
+            <td class="actions">
+              {% if not k.revoked and k.bound_ip %}
+              <button class="btn ghost sm js-unbind" title="Release the host lock so this script works from a new address">Unlock</button>
+              {% endif %}
+              {% if not k.revoked %}
+              <button class="btn ghost sm js-revoke" title="Revoke this key">Revoke</button>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="empty" id="keys-empty" {% if keys %}hidden{% endif %}>
+        <p style="margin:0">No keys issued yet. Copy a script above and one is minted for it.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Agent source</h2>
+      <div class="spacer"></div>
+      <span class="badge plain">standard library only · python 3.6+</span>
+    </div>
+    <div class="panel-body"><pre class="code tall py" id="script-preview">loading…</pre></div>
+  </div>
+
+{% else %}
+  <div class="panel">
+    <div class="panel-head"><h2>Details</h2></div>
+    <div class="panel-body">
+      <div class="field">
+        <label class="lbl" for="tk-name">Name</label>
+        <input type="text" id="tk-name" value="{{ toolkit.name }}">
+      </div>
+      <div class="field">
+        <label class="lbl" for="tk-desc">Description</label>
+        <input type="text" id="tk-desc" value="{{ toolkit.description }}">
+      </div>
+      <button class="btn primary" id="save-details">Save</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Setup script</h2>
+      <div class="spacer"></div>
+      <span class="badge plain">runs with <code>--setup</code></span>
+    </div>
+    <div class="panel-body">
+      <p style="color:var(--muted);font-size:13px">
+        Shipped inside the archive as <code>setup.sh</code> and executed from the deploy directory when the
+        operator passes <code>--setup</code>. Good place for <code>chmod</code>, symlinks, or dependency installs.
+      </p>
+      <textarea id="setup-script" spellcheck="false" placeholder="#!/bin/sh&#10;set -e&#10;pip3 install -r requirements.txt">{{ toolkit.setup_script }}</textarea>
+      <div style="margin-top:12px"><button class="btn primary" id="save-setup">Save setup script</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Danger zone</h2></div>
+    <div class="panel-body">
+      <div class="row" style="align-items:center">
+        <div>
+          <b>Rotate the API key</b>
+          <div class="hint" style="margin-top:2px">Issues a new token and re-encrypts the archive. Every deploy script already handed out stops working immediately.</div>
+        </div>
+        <button class="btn shrink" id="rotate-key">
+          <svg width="15" height="15"><use href="#i-key"/></svg> Rotate
+        </button>
+      </div>
+      <hr style="border:0;border-top:1px solid var(--border-soft);margin:16px 0">
+      <div class="row" style="align-items:center">
+        <div>
+          <b>Delete this toolkit</b>
+          <div class="hint" style="margin-top:2px">Removes the archive and every uploaded file in it. Cannot be undone.</div>
+        </div>
+        <button class="btn danger shrink" id="delete-toolkit">
+          <svg width="15" height="15"><use href="#i-trash"/></svg> Delete toolkit
+        </button>
+      </div>
+    </div>
+  </div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.TOOLKIT = {{ {'slug': toolkit.slug, 'name': toolkit.name, 'tab': tab} | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/toolkit.js') }}"></script>
+{% endblock %}

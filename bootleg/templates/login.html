@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Bootleg{% endblock %}
+{% block layout %}
+<div class="gate"><div class="gate-card">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#14171b" stroke="#23282f"/><path d="M9 11h14M9 16h14M9 21h9" stroke="#c9f227" stroke-width="2.6" stroke-linecap="round"/></svg>
+    Bootleg
+  </div>
+  <div class="panel"><div class="panel-body">
+    {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+    <form method="post">
+      <div class="field">
+        <label class="lbl" for="password">Admin password</label>
+        <input type="password" id="password" name="password" autofocus required autocomplete="current-password">
+      </div>
+      <button class="btn primary" style="width:100%;justify-content:center" type="submit">Sign in</button>
+    </form>
+  </div></div>
+  <p class="gate-note">Toolkit archive and deployment server</p>
+</div></div>
+{% endblock %}
